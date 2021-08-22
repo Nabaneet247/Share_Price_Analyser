@@ -114,8 +114,10 @@ def calculate_cagr(start_date, last_date, starting_capital, final_balance):
 
 
 def entry_condition(df, index, high_type, low_type, window_size):
-    if df.loc[index - window_size: index, low_type].max() == df.loc[index - window_size: index, low_type].min():
-        if df.loc[index - window_size: index, high_type].is_monotonic_increasing:
+    low_window_series = df.loc[index - window_size: index, low_type]
+    if low_window_series.max() == low_window_series.min():
+        high_window_series = df.loc[index - window_size: index, high_type]
+        if high_window_series.is_monotonic_increasing and high_window_series.max() >= 1.05 * high_window_series.min():
             return df.loc[index, CLOSE]
     return 0
 
@@ -177,7 +179,7 @@ def run_strategy_for_multiple_stocks_in_parallel(max_processes=1):
                                          (100, 30), (50, 25), (40, 20), (40, 5), (90, 30)],
                   'high_type': [HIGH_50D, HIGH_100D, HIGH_200D],
                   'low_type': [LOW_50D, LOW_100D, LOW_200D],
-                  'window_size': [5, 10, 15, 20],
+                  'window_size': [5, 10],
                   'shares_data': [load_shares_data()]
                   }
     # param_grid = {'trailing_sl_type': [LOW_20D],
@@ -428,18 +430,23 @@ def back_test_for_multiple_shares(symbols, target_profit_percent, absolute_stop_
     daily_log.reset_index(inplace=True)
     daily_log.rename(columns={"index": "Date"}, inplace=True)
 
-    avg_profit_percent = round(avg_profit_percent / win, 2)
-    avg_loss_percent = round(avg_loss_percent / loss, 2)
+    avg_profit_percent = round(avg_profit_percent / win, 2) if win > 0 else 0
+    avg_loss_percent = round(avg_loss_percent / loss, 2) if loss > 0 else 0
 
-    trailing_sl_exits = round(trailing_sl_exits / trades_exited * 100, 2)
-    abs_sl_exits = round(abs_sl_exits / trades_exited * 100, 2)
-    target_exits = round(target_exits / trades_exited * 100, 2)
+    trailing_sl_exits = round(trailing_sl_exits / trades_exited * 100, 2) if trades_exited > 0 else 0
+    abs_sl_exits = round(abs_sl_exits / trades_exited * 100, 2) if trades_exited > 0 else 0
+    target_exits = round(target_exits / trades_exited * 100, 2) if trades_exited > 0 else 0
+
+    if loss > 0:
+        win_loss_ratio = round(win / loss, 2)
+    else:
+        win_loss_ratio = round(win * 100, 2)
 
     cagr, years = calculate_cagr(start_date, last_date, starting_capital, portfolio_value_today)
     stats_log = pd.DataFrame(
         {'Timestamp': datetime.now(), 'Total Trades': trades_entered + trades_exited,
          'Trades Entered': trades_entered, 'Trades Exited': trades_exited,
-         'Wins': win, 'Losses': loss, 'W/L Ratio': round(win / loss, 2),
+         'Wins': win, 'Losses': loss, 'W/L Ratio': win_loss_ratio,
          'CAGR': cagr, 'Net Profit': total_profit + total_loss, 'Back Test Duration': years,
          'Trailing SL Exits %': trailing_sl_exits, 'Absolute SL Exits %': abs_sl_exits,
          'Target Met Exit %': target_exits, 'Trades per year': round((win + loss) / years, 2),
