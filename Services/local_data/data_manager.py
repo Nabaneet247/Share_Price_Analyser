@@ -33,4 +33,5 @@ def get_share_object_for_symbol(symbol):
 
 
 if __name__ == '__main__':
-    generate_data_files_for_nifty500(max_processes=3)
+    # generate_data_files_for_nifty500(max_processes=3)
+    fetch_and_save_historical_daily_price_data_for_a_share('BASF')
